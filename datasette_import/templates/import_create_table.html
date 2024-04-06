@@ -1,0 +1,391 @@
+{% extends "base.html" %}
+
+{% block title %}Import data to create a table{% endblock %}
+
+{% block extra_head %}
+<script src="{{ papaparse_url }}"></script>
+<style>
+progress#progressBar {
+    width: 100%;
+    height: 20px;
+    background-color: #e0e0e0;
+    border: 1px solid #c0c0c0;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+progress#progressBar::-webkit-progress-bar {
+    /* Background of the progress barfor Safari and Chrome */
+    background-color: #e0e0e0;
+    border-radius: 5px;
+}
+
+progress#progressBar::-webkit-progress-value {
+    /* Color of the progress bar for Safari and Chrome */
+    background-color: #147af0; /* Dark blue */
+    border-radius: 5px;
+}
+
+progress#progressBar::-moz-progress-bar {
+    /* Color of the progress bar for Firefox */
+    background-color: #147af0; /* Dark blue */
+    border-radius: 5px;
+}
+form input:invalid {
+    border: 1px solid red;
+}
+#tablePreview .table-wrapper {
+    overflow: auto;
+}
+#tablePreview th {
+  font-weight: bold;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Import data to create a table</h1>
+
+<p>Select a range of cells in Google Sheets / Excel / Numbers (or select-all), hit copy, then paste into this box to import that data and create a new table.</p>
+
+<form id="pasteForm" style="display: none">
+  <p>
+    <label for="id_table_name">Table name:</label>
+    <input type="text" required name="table" id="id_table_name" value="" placeholder="Enter a new table name">
+  </p>
+  <p>Table will be created in <strong>{{ database }}</strong></p>
+  <p><label for="id_content">Paste data here:</label> <span id="pasteLoading"></span></p>
+  <p>
+    <textarea name="content" required id="id_content" style="width: 100%; height: 20em;" placeholder="Paste content here"></textarea>
+  </p>
+  <p id="submitRows">
+    <input type="submit" value="Upload rows to Datasette">
+  </p>
+  <p><progress id="progressBar" style="display: none" value="0" max="100"></progress></p>
+</form>
+
+<div id="tablePreview"></div>
+
+<p id="requires-javascript">This feature requires JavaScript</p>
+
+<script>
+const loadingSvg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 100 100"
+  style="width: 30px; height: 30px; position: relative; top: 10px; ">
+<g transform="rotate(0 50 50)">
+  <rect x="47" y="24" rx="3" ry="6" width="6" height="12" fill="#292664">
+    <animate attributeName="opacity" values="1;0" keyTimes="0;1" dur="1s" begin="-0.9166666666666666s" repeatCount="indefinite"></animate>
+  </rect>
+</g><g transform="rotate(30 50 50)">
+  <rect x="47" y="24" rx="3" ry="6" width="6" height="12" fill="#292664">
+    <animate attributeName="opacity" values="1;0" keyTimes="0;1" dur="1s" begin="-0.8333333333333334s" repeatCount="indefinite"></animate>
+  </rect>
+</g><g transform="rotate(60 50 50)">
+  <rect x="47" y="24" rx="3" ry="6" width="6" height="12" fill="#292664">
+    <animate attributeName="opacity" values="1;0" keyTimes="0;1" dur="1s" begin="-0.75s" repeatCount="indefinite"></animate>
+  </rect>
+</g><g transform="rotate(90 50 50)">
+  <rect x="47" y="24" rx="3" ry="6" width="6" height="12" fill="#292664">
+    <animate attributeName="opacity" values="1;0" keyTimes="0;1" dur="1s" begin="-0.6666666666666666s" repeatCount="indefinite"></animate>
+  </rect>
+</g><g transform="rotate(120 50 50)">
+  <rect x="47" y="24" rx="3" ry="6" width="6" height="12" fill="#292664">
+    <animate attributeName="opacity" values="1;0" keyTimes="0;1" dur="1s" begin="-0.5833333333333334s" repeatCount="indefinite"></animate>
+  </rect>
+</g><g transform="rotate(150 50 50)">
+  <rect x="47" y="24" rx="3" ry="6" width="6" height="12" fill="#292664">
+    <animate attributeName="opacity" values="1;0" keyTimes="0;1" dur="1s" begin="-0.5s" repeatCount="indefinite"></animate>
+  </rect>
+</g><g transform="rotate(180 50 50)">
+  <rect x="47" y="24" rx="3" ry="6" width="6" height="12" fill="#292664">
+    <animate attributeName="opacity" values="1;0" keyTimes="0;1" dur="1s" begin="-0.4166666666666667s" repeatCount="indefinite"></animate>
+  </rect>
+</g><g transform="rotate(210 50 50)">
+  <rect x="47" y="24" rx="3" ry="6" width="6" height="12" fill="#292664">
+    <animate attributeName="opacity" values="1;0" keyTimes="0;1" dur="1s" begin="-0.3333333333333333s" repeatCount="indefinite"></animate>
+  </rect>
+</g><g transform="rotate(240 50 50)">
+  <rect x="47" y="24" rx="3" ry="6" width="6" height="12" fill="#292664">
+    <animate attributeName="opacity" values="1;0" keyTimes="0;1" dur="1s" begin="-0.25s" repeatCount="indefinite"></animate>
+  </rect>
+</g><g transform="rotate(270 50 50)">
+  <rect x="47" y="24" rx="3" ry="6" width="6" height="12" fill="#292664">
+    <animate attributeName="opacity" values="1;0" keyTimes="0;1" dur="1s" begin="-0.16666666666666666s" repeatCount="indefinite"></animate>
+  </rect>
+</g><g transform="rotate(300 50 50)">
+  <rect x="47" y="24" rx="3" ry="6" width="6" height="12" fill="#292664">
+    <animate attributeName="opacity" values="1;0" keyTimes="0;1" dur="1s" begin="-0.08333333333333333s" repeatCount="indefinite"></animate>
+  </rect>
+</g><g transform="rotate(330 50 50)">
+  <rect x="47" y="24" rx="3" ry="6" width="6" height="12" fill="#292664">
+    <animate attributeName="opacity" values="1;0" keyTimes="0;1" dur="1s" begin="0s" repeatCount="indefinite"></animate>
+  </rect>
+</g>
+</svg>`;
+
+document.getElementById('requires-javascript').style.display = 'none';
+const progressBar = document.getElementById('progressBar');
+const form = document.getElementById('pasteForm')
+const submitP = document.getElementById('submitRows');
+const contentTa = document.getElementById('id_content');
+const tableNameInput = document.getElementById('id_table_name');
+const tablePreviewDiv = document.getElementById('tablePreview');
+const pasteLoading = document.getElementById('pasteLoading');
+pasteLoading.style.visibility = 'hidden';
+pasteLoading.innerHTML = loadingSvg;
+submitP.style.display = 'none';
+form.style.display = 'block';
+
+let currentRows = [];
+
+function rateLimiter(fn, delay) {
+  let timeout;
+  return (...args) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      fn.apply(this, args);
+    }, delay);
+  };
+}
+
+function checkTableName() {
+  const table = tableNameInput.value.trim();
+  if (!table) {
+    return;
+  }
+  // API is /content/$table_name.json?_size=0 - if it returns ok: false then the table name is available
+  fetch(`/content/${table}.json?_size=0`).then(response => {
+    return response.json();
+  }).then(json => {
+    if (json.ok === true) {
+      tableNameInput.setCustomValidity('A table with that name already exists');
+    } else {
+      tableNameInput.setCustomValidity('');
+    }
+  });
+}
+
+function createTableFromObjects(rows) {
+  const table = document.createElement('table');
+  // Create header row
+  const headerRow = table.insertRow();
+  Object.entries(rows[0]).forEach(([key, value]) => {
+    const th = document.createElement('th');
+    th.innerText = key;
+    headerRow.appendChild(th);
+  });
+
+  // Create data rows
+  for (let i = 0; i < rows.length; i++) {
+    const tr = table.insertRow();
+    const row = rows[i];
+    Object.entries(row).forEach(([key, value]) => {
+      const td = document.createElement('td');
+      td.textContent = value;
+      tr.appendChild(td);
+    });
+  }
+  return table;
+}
+
+// Check if table already exists when table name changes
+tableNameInput.addEventListener('keyup', rateLimiter(checkTableName, 1000));
+checkTableName();
+
+let previousContent = '';
+
+function handleResults(rows) {
+  if (rows.length) {
+    submitP.style.display = 'block';
+    submitP.querySelector('input').value = `Upload ${rows.length.toLocaleString()} row${rows.length === 1 ? '' : 's'} to Datasette`;
+    // Show preview of first 100 rows
+    const previewSlice = rows.slice(0, 100);
+    const table = createTableFromObjects(previewSlice);
+    let title = `Previewing ${previewSlice.length.toLocaleString()} row${previewSlice.length === 1 ? '' : 's'}`;
+    if (previewSlice.length < rows.length) {
+      title += ` (of ${rows.length.toLocaleString()})`;
+    }
+    tablePreviewDiv.innerHTML = `<h3>${title}</h3>`;
+    const tableWrapper = document.createElement('div');
+    tableWrapper.className = 'table-wrapper';
+    tableWrapper.appendChild(table);
+    tablePreviewDiv.appendChild(tableWrapper);
+  } else {
+    submitP.style.display = 'none';
+    tablePreviewDiv.innerHTML = '';
+  }
+}
+
+function updated() {
+  const content = document.getElementById('id_content').value.trim();
+  if (content != previousContent) {
+    previousContent = content;
+    // First try to treat it as JSON, if not then assume CSV/TSV
+    let fromJson = parseJsonArray(content);
+    if (fromJson) {
+      currentRows = fromJson;
+      handleResults(currentRows);
+    } else {
+      pasteLoading.style.visibility = 'visible';
+      Papa.parse(content, {
+        header: true,
+        worker: true,
+        complete: function(results) {
+          pasteLoading.style.visibility = 'hidden';
+          currentRows = results.data;
+          handleResults(currentRows);
+        }
+      });
+    }
+  }
+}
+
+const limited = rateLimiter(updated, 1000);
+
+contentTa.addEventListener('change', limited);
+contentTa.addEventListener('keyup', limited);
+limited();
+
+const batchSize = 100;
+const numParallel = 5;
+
+async function uploadRows(rows, url, headers, table, progressBar) {
+  let activeRequests = 0;
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+    while (activeRequests >= numParallel) {
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+    activeRequests++;
+    fetch(url, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({table: table, rows: batch})
+    }).then(response => {
+      activeRequests--;
+      if (!response.ok) {
+        throw new Error('Failed to upload rows: ' + response.statusText);
+      }
+      return response.json();
+    }).then(json => {
+      if (json.ok) {
+        progressBar.value += batch.length;
+        if (progressBar.value === progressBar.max) {
+          window.location = json.table_url;
+        }
+      } else {
+        alert('Error uploading rows: ' + json.error);
+      }
+    }).catch(error => {
+      activeRequests--;
+      alert('Error uploading rows: ' + error);
+    });
+  }
+}
+
+form.onsubmit = function(event) {
+  event.preventDefault();
+  const table = document.getElementById('id_table_name').value.trim();
+  if (!table) {
+    alert('Please enter a table name');
+    return;
+  }
+  const content = document.getElementById('id_content').value.trim();
+  if (!content) {
+    alert('Please paste some content');
+    return;
+  }
+  if (!currentRows.length) {
+    alert('No rows found in content');
+    return;
+  }
+  progressBar.style.display = 'block';
+  progressBar.value = 0;
+  progressBar.max = currentRows.length;
+  // Submit to API in batches
+  const url = window.location.pathname.replace('/-/import', '/-/create');
+  const headers = new Headers();
+  headers.append('Content-Type', 'application/json');
+  uploadRows(currentRows, url, headers, table, progressBar);
+};
+
+function parseJsonArray(string) {
+  // 1. Check for the first non-whitespace character
+  const firstChar = string.trim()[0];
+  if (firstChar !== '{' && firstChar !== '[') {
+    return null;
+  }
+  // 2. Attempt to parse the string as JSON
+  let json;
+  try {
+    json = JSON.parse(string);
+  } catch (error) {
+    return null;
+  }
+  // 3. Check if the JSON is an array of objects
+  if (Array.isArray(json) && json.every(item => typeof item === 'object' && item !== null)) {
+    return json;
+  }
+  // 4. Check if it's an object with array of objects as values
+  if (typeof json === 'object' && json !== null) {
+    let largestArray = [];
+    for (const key in json) {
+      if (Array.isArray(json[key]) && json[key].length > largestArray.length && json[key].every(item => typeof item === 'object' && item !== null)) {
+        largestArray = json[key];
+      }
+    }
+    return largestArray.length > 0 ? largestArray : null;
+  }
+  return null;
+}
+
+function setupTextareaWithFileInput(textarea) {
+  function readFileAndUpdateTextarea(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      textarea.value = e.target.result;
+      limited();
+    };
+    reader.readAsText(file);
+  }
+
+  // Create a file input element
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.style.display = 'block';
+  fileInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      readFileAndUpdateTextarea(file);
+    }
+  });
+
+  // Wrap the file input in a paragraph and insert it after the textarea
+  const paragraph = document.createElement('p');
+  paragraph.appendChild(fileInput);
+  textarea.parentNode.insertBefore(paragraph, textarea.nextSibling);
+
+  // Set up the textarea as a drop target
+  textarea.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    textarea.style.backgroundColor = 'lightblue';
+  });
+
+  textarea.addEventListener('dragleave', (event) => {
+    event.preventDefault();
+    textarea.style.backgroundColor = '';
+  });
+
+  textarea.addEventListener('drop', (event) => {
+    event.preventDefault();
+    textarea.style.backgroundColor = '';
+    const file = event.dataTransfer.files[0];
+    if (file) {
+      readFileAndUpdateTextarea(file);
+    }
+  });
+}
+
+setupTextareaWithFileInput(contentTa);
+</script>
+
+{% endblock %}
