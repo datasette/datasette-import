@@ -1,6 +1,6 @@
 [project]
 name = "datasette-import"
-version = "0.1"
+version = "0.1a4"
 description = "Tools for importing data into Datasette"
 readme = "README.md"
 authors = [{name = "Datasette"}]
