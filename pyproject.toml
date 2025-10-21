@@ -1,6 +1,6 @@
 [project]
 name = "datasette-import"
-version = "0.1a5"
+version = "0.1a6"
 description = "Tools for importing data into Datasette"
 readme = "README.md"
 authors = [{name = "Datasette"}]
@@ -11,7 +11,7 @@ classifiers=[
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "datasette>=1.0a13"
+    "datasette==1.0a19"
 ]
 
 [project.urls]
